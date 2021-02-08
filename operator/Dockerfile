@@ -25,7 +25,6 @@ LABEL name="IBM Spectrum Scale CSI Operator" \
       git_commit=$GIT_COMMIT
 
 
-COPY hacks/health_check.sh .
 COPY licenses /licenses
 COPY watches.yaml ${HOME}/watches.yaml
 COPY roles/ ${HOME}/roles/
