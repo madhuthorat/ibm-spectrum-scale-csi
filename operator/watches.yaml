@@ -6,7 +6,7 @@
   role: /opt/ansible/roles/csiscaleoperator
   ManageStatus: true
   finalizer:
-    name: finalizer.csiscaleoperators.csi.ibm.com
+    name: csiscaleoperators.csi.ibm.com/finalizer
     vars:
       state: absent
 - version: v1

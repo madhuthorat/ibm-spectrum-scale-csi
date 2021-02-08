@@ -58,17 +58,17 @@ spec:
           image: ibm-spectrum-scale-csi-operator
           imagePullPolicy: IfNotPresent
           livenessProbe:
-            exec:
-              command:
-                - ./health_check.sh
-            initialDelaySeconds: 10
+            httpGet:
+              path: /readyz
+              port: 6789
+            initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
-            exec:
-              command:
-                - ./health_check.sh
-            initialDelaySeconds: 3
-            periodSeconds: 1
+            httpGet:
+              path: /healthz
+              port: 6789
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             limits:
               cpu: 500m
