@@ -14,9 +14,7 @@
 
 - name: "Combining the individual deploy/*yaml files into a single one: {{ generated_op_yaml }}"
   shell: "kustomize build --reorder none {{ operator_dir }}/config/default > {{ generated_op_yaml }}"
-#  register: foo_result
-#  ignore_errors: True
-#  local_action: copy content= dest={{ generated_op_yaml }}
+  ignore_errors: False
 
 - name: "Copy generated file to dev file"
   copy:
