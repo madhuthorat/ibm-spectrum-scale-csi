@@ -43,8 +43,17 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 
 	// Validate Arguments
 	targetPath := req.GetTargetPath()
+	//sourcePath := req.StagingTargetPath()
 	volumeID := req.GetVolumeId()
 	volumeCapability := req.GetVolumeCapability()
+
+	switch req.VolumeCapability.GetAccessType().(type) {
+		case *csi.VolumeCapability_Block:
+			/*TODO: Handle for block volume */
+			glog.Infof("***BVS*** Block volume")
+		case *csi.VolumeCapability_Mount:
+			glog.Infof("***BVS*** NOT block volume")
+	}
 
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "volumeID must be provided")
@@ -127,6 +136,15 @@ func (ns *ScaleNodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeSta
 	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
 	volumeCapability := req.GetVolumeCapability()
+
+	if _, ok := volumeCapability.GetAccessType().(*csi.VolumeCapability_Block); ok {
+		/* For block volume we don't do anything, return from here */
+                glog.Infof("***BVS*** Block volume.. return from here")
+                return &csi.NodeStageVolumeResponse{}, nil
+        } else {
+                glog.Infof("***BVS*** NOT block volume")
+        }
+
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume ID must be provided")
 	}
