@@ -32,8 +32,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-        "k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
-	utilexec "k8s.io/utils/exec"
+//        "k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
 )
 
 const (
@@ -112,7 +111,7 @@ func (cs *ScaleControllerServer) createBlockVol(scVol *scaleVolume) (string, err
 	glog.V(4).Infof("volume: [%v] - ControllerServer:createBlockVol", scVol.VolName)
 	var err error
 
-	glog.Infof("***BVS*** Inside createBlockVol")
+	glog.Errorf("***BVS*** Inside createBlockVol")
 	// check if directory exist
 	/*dirExists, err := scVol.PrimaryConnector.CheckIfFileDirPresent(scVol.VolBackendFs, scVol.VolDirBasePath)
 	if err != nil {
@@ -125,18 +124,18 @@ func (cs *ScaleControllerServer) createBlockVol(scVol *scaleVolume) (string, err
 		return "", status.Error(codes.Internal, fmt.Sprintf("directory base path %v not present in filesystem %v", scVol.VolDirBasePath, scVol.VolBackendFs))
 	} */
 
-	// create directory in the filesystem specified in storageClass
-	path := fmt.Sprintf("%s/%s1", scVol.VolDirBasePath, scVol.VolName)
+	// create file in the filesystem specified in storageClass
+	path := fmt.Sprintf("%s/mnt/fs1/%s", scVol.VolDirBasePath, scVol.VolName)
 
-	glog.Infof("***BVS***volume: [%v] - creating file %v", scVol.VolName, path)
+	glog.Errorf("***BVS***volume: [%v] - creating file %v", scVol.VolName, path)
 	{
-	executor := utilexec.New()
 	/* Hard coded capacity for now */
 	size := "1000M"
 	_, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			out, err := executor.Command("fallocate", "-l", size, path).CombinedOutput()
+			args := []string{"-l", size, path}
+			out, err := executeCmd("/usr/bin/fallocate", args)
 			if err != nil {
 				return "", status.Error(codes.Internal, fmt.Sprintf("failed to create block device: path: %v %v, %v", path, err, string(out)))
 			}
@@ -146,32 +145,37 @@ func (cs *ScaleControllerServer) createBlockVol(scVol *scaleVolume) (string, err
 	}
 	}
 
-	
 	// Associate block file with the loop device.
-	volPathHandler := volumepathhandler.VolumePathHandler{}
-	_, err = volPathHandler.AttachFileDevice(path)
-//	executor := utilexec.New()
-//	_, err = executor.Command("losetup", "-fP", path).CombinedOutput() 
+//	volPathHandler := volumepathhandler.VolumePathHandler{}
+//	_, err = volPathHandler.AttachFileDevice(path)
+	args := []string{"-fP", path}
+	out, err := executeCmd("/usr/sbin/losetup", args)
 	if err != nil {
-		glog.Infof("***BVS***volume: losetup failed for [%v] - and file %v", scVol.VolName, path)
+		glog.Errorf("***BVS***volume: AttachFileDevice/ losetup failed for [%v] - and file %v, err: %v, out: %v", scVol.VolName, path, err, out)
 		// Remove the block file because it'll no longer be used again.
 //		if err2 := os.Remove(path); err2 != nil {
 //			glog.Errorf("failed to cleanup block file %s: %v", path, err2)
 //		}
-		return "", fmt.Errorf("failed to attach device %v: %v", path, err)
+//		return "", fmt.Errorf("failed to attach device %v: %v", path, err)
 	} else {
-		glog.Infof("***BVS***volume: AttachFileDevice/ losetup worked for [%v] - and file %v", scVol.VolName, path)
+		glog.Errorf("***BVS***volume: AttachFileDevice/ losetup worked for [%v] - and file %v, err: %v, out: %v", scVol.VolName, path, err, out)
 	}
-	/* For testing purpose have a hard coded block volume path */
-//	mypath := "/dev/loop2"
+
+	path = scVol.VolName
 	return path, nil	
 }
 
 //generateVolID: Generate volume ID
-func (cs *ScaleControllerServer) generateVolID(scVol *scaleVolume, uid string) string {
+func (cs *ScaleControllerServer) generateVolID(scVol *scaleVolume, uid string, reqAccessType accessType) string {
 	glog.V(4).Infof("volume: [%v] - ControllerServer:generateVolId", scVol.VolName)
 	var volID string
 
+	if reqAccessType == blockAccess {
+		slink := fmt.Sprintf("%s/%s", scVol.PrimarySLnkPath, scVol.VolName)
+		glog.Errorf("***BVS*** Symbolic Link: %s", slink)
+		volID = fmt.Sprintf("%s;%s;path=%s", scVol.ClusterId, uid, slink)
+		return volID
+	}
 	if scVol.IsFilesetBased {
 		/* <cluster_id>;<filesystem_uuid>;fileset=<fileset_id>; path=<symlink_path> */
 		slink := fmt.Sprintf("%s/%s", scVol.PrimarySLnkPath, scVol.VolName)
@@ -625,7 +629,7 @@ func (cs *ScaleControllerServer) CreateVolume(ctx context.Context, req *csi.Crea
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	volID := cs.generateVolID(scaleVol, volFsInfo.UUID)
+	volID := cs.generateVolID(scaleVol, volFsInfo.UUID, reqAccessType)
 
 	//fsDetails, err := cs.getFilesystemDetails(scaleVol)
 	fsDetails, err := scaleVol.Connector.GetFilesystemDetails(scaleVol.VolBackendFs)
