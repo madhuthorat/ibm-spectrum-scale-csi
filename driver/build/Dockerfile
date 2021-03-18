@@ -25,6 +25,8 @@ LABEL name="IBM Spectrum Scale CSI driver" \
       maintainers="IBM Spectrum Scale"\
       git_commit=$GIT_COMMIT
 
+RUN microdnf -y install util-linux
+
 COPY licenses /licenses
 COPY --from=builder /go/src/github.com/IBM/ibm-spectrum-scale-csi/driver/_output/ibm-spectrum-scale-csi /ibm-spectrum-scale-csi
 ENTRYPOINT ["/ibm-spectrum-scale-csi"]
