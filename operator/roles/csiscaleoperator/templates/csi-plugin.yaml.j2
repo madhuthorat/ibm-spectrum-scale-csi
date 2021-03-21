@@ -64,7 +64,14 @@ spec:
               mountPath: /var/lib/kubelet/plugins/spectrumscale.csi.ibm.com
             - name: registration-dir
               mountPath: /registration
+            - name: host-dev
+              mountPath: /dev
         - name: ibm-spectrum-scale-csi
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
           image: "{{ spectrumScale }}"
           args :
             - "--nodeid=$(NODE_ID)"
@@ -93,7 +100,7 @@ spec:
 {% endfor %}
 {% endif %}
             # Get refs to the secrets so we can trigger a refresh
-          imagePullPolicy: "IfNotPresent" # "Always"
+          imagePullPolicy: "Always" # "Always"
           volumeMounts:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/spectrumscale.csi.ibm.com
