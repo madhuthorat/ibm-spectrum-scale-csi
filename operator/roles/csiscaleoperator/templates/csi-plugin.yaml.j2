@@ -64,7 +64,14 @@ spec:
               mountPath: "{{ kubeletRootDirPath }}/plugins/spectrumscale.csi.ibm.com"
             - name: registration-dir
               mountPath: /registration
+            - name: host-dev
+              mountPath: /dev
         - name: ibm-spectrum-scale-csi
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
           image: "{{ spectrumScale }}"
           args :
             - "--nodeid=$(NODE_ID)"
