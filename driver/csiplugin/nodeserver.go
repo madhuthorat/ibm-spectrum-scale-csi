@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"fmt"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
@@ -27,6 +28,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
 )
 
 type ScaleNodeServer struct {
@@ -46,23 +48,59 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 	volumeID := req.GetVolumeId()
 	volumeCapability := req.GetVolumeCapability()
 
-	switch req.VolumeCapability.GetAccessType().(type) {
-		case *csi.VolumeCapability_Block:
-			/*TODO: Handle for block volume */
-			glog.Infof("***BVS*** Block volume")
-		case *csi.VolumeCapability_Mount:
-			glog.Infof("***BVS*** NOT block volume")
+        if len(volumeID) == 0 {
+                return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
+        }
+        if len(targetPath) == 0 {
+                return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Target Path must be provided")
+        }
+        if volumeCapability == nil {
+                return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
+        }
+
+	if _, ok := volumeCapability.GetAccessType().(*csi.VolumeCapability_Block); ok {
+		glog.Infof("***BVS*** For block volume, targetPath: %s", targetPath)
+
+	        splitVId := strings.Split(volumeID, ";")
+
+        	if len(splitVId) < 4 {
+                	return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** NodePublishVolume VolumeID is not in proper format, volumeID: %s", volumeID))
+	        }
+
+        	index := 3
+
+	        SlnkPart := splitVId[index]
+        	targetSlnkPath := strings.Split(SlnkPart, "=")
+
+	        if len(targetSlnkPath) < 2 {
+        	        return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** 1NodePublishVolume VolumeID is not in proper format, volumeID: %s", volumeID))
+	        }
+
+        	glog.Infof("***BVS*** Target SpectrumScale Symlink Path : %v\n", targetSlnkPath[1])
+		volPath := targetSlnkPath[1]
+
+                // Get loop device from the volume path.
+		volPathHandler := volumepathhandler.VolumePathHandler{}
+                loopDevice, err := volPathHandler.GetLoopDevice(volPath)
+                if err != nil {
+			glog.Infof("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err)
+                        return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** failed to get the loop device: %v", err))
+                } else {
+			glog.Errorf("***BVS*** got loopdevice: %v", loopDevice)
+		}
+
+                args := []string{"-sf", loopDevice, targetPath}
+                outputBytes, err := executeCmd("/bin/ln", args)
+                glog.Infof("***BVS*** Cmd /bin/ln args: %v Output: %v", args, outputBytes)
+                if err != nil {
+                        return nil, err
+                }
+
+                glog.Errorf("***BVS*** Successfully mounted %s", targetPath)
+                return &csi.NodePublishVolumeResponse{}, nil
 	}
 
-	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
-	}
-	if len(targetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Target Path must be provided")
-	}
-	if volumeCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
-	}
+	glog.Infof("***BVS*** NOT block volume")
 
 	/* <cluster_id>;<filesystem_uuid>;path=<symlink_path> */
 
