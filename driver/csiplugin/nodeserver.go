@@ -81,13 +81,29 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 
                 // Get loop device from the volume path.
 		volPathHandler := volumepathhandler.VolumePathHandler{}
-                loopDevice, err := volPathHandler.GetLoopDevice(volPath)
+	        loopDevice, err := volPathHandler.AttachFileDevice(volPath)
+		/* Alternate way to associate block file with the loop device is below - commenting now
+	        args := []string{"-fP", "--show", path}
+        	loopDevice, err := executeCmd("/usr/sbin/losetup", args) */
+
+	        if err != nil {
+        	        glog.Errorf("***BVS*** AttachFileDevice/ losetup failed for file %v, err: %v", volPath, err)
+                	// Remove the block file because it'll no longer be used again.
+	                if err2 := os.Remove(volPath); err2 != nil {
+        	                glog.Errorf("***BVS*** failed to cleanup block file %s: %v", volPath, err2)
+                	}
+	                return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to attach device %v: %v", volPath, err))
+        	}
+	        glog.Infof("***BVS*** AttachFileDevice/ losetup worked for file %v, err: %v, out: %v", volPath, err, loopDevice)
+
+
+/*                loopDevice, err := volPathHandler.GetLoopDevice(volPath)
                 if err != nil {
 			glog.Infof("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err)
                         return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** failed to get the loop device: %v", err))
                 } else {
 			glog.Errorf("***BVS*** got loopdevice: %v", loopDevice)
-		}
+		}*/
 
                 args := []string{"-sf", loopDevice, targetPath}
                 outputBytes, err := executeCmd("/bin/ln", args)

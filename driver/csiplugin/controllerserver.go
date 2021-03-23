@@ -32,7 +32,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-        "k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
 )
 
 const (
@@ -143,31 +142,6 @@ func (cs *ScaleControllerServer) createBlockVol(scVol *scaleVolume) (string, err
 		}
 	}
 
-	// Associate block file with the loop device.
-	volPathHandler := volumepathhandler.VolumePathHandler{}
-	out, err := volPathHandler.AttachFileDevice(path)
-	/* Alternate way to associate block file with the loop device is below - commenting now
-	args := []string{"-fP", path}
-	out, err := executeCmd("/usr/sbin/losetup", args) */
-
-	if err != nil {
-		glog.Errorf("***BVS*** AttachFileDevice/ losetup failed for file %v, err: %v, out: %v", path, err, out)
-		// Remove the block file because it'll no longer be used again.
-		if err2 := os.Remove(path); err2 != nil {
-			glog.Errorf("***BVS*** failed to cleanup block file %s: %v", path, err2)
-		}
-		return "", fmt.Errorf("failed to attach device %v: %v", path, err)
-	}
-	glog.Infof("***BVS*** AttachFileDevice/ losetup worked for [%v] - and file %v, err: %v, out: %v", scVol.VolName, path, err, out)
-
-	// Verify: Get loop device using the volume path - Remove this verification code in final code
-	loopDevice, err := volPathHandler.GetLoopDevice(path)
-	if err != nil {
-		glog.Errorf("***BVS*** failed to get the loop device for path: %s err: %v", path, err)
-	} else {
-		glog.Infof("***BVS*** got loopdevice: %v", loopDevice)
-	}
-
 	ret_path := fmt.Sprintf("%s/%s", scVol.VolDirBasePath, scVol.VolName)
 	return ret_path, nil	
 }
@@ -182,15 +156,6 @@ func (cs *ScaleControllerServer) generateVolID(scVol *scaleVolume, uid string, r
 		acpath := fmt.Sprintf("/mnt/%s/%s/%s", scVol.VolBackendFs, scVol.VolDirBasePath, scVol.VolName)
 		glog.Errorf("***BVS*** Symbolic Link: %s, Actual Path: %s", slink, acpath)
 		volID = fmt.Sprintf("%s;%s;path=%s;actual_path=%s", scVol.ClusterId, uid, slink, acpath)
-
-	        // Get loop device from the volume path - For verification only, remove below lines in final code
-	        volPathHandler := volumepathhandler.VolumePathHandler{}
-        	loopDevice, err := volPathHandler.GetLoopDevice(acpath)
-	        if err != nil {
-	                glog.Infof("***BVS*** Using Sym link, failed to get the loop device for path: %s err:: %v", acpath, err)
-        	} else {
-                	glog.Errorf("***BVS*** Using Sym link, got loopdevice: %v", loopDevice)
-        	}
 
 		return volID
 	}
