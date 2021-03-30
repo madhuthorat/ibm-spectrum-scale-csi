@@ -28,7 +28,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
+//	"k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
 )
 
 type ScaleNodeServer struct {
@@ -63,11 +63,11 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 
 	        splitVId := strings.Split(volumeID, ";")
 
-        	if len(splitVId) < 4 {
+        	if len(splitVId) < 3 {
                 	return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** NodePublishVolume VolumeID is not in proper format, volumeID: %s", volumeID))
 	        }
 
-        	index := 3
+        	index := 2 
 
 	        SlnkPart := splitVId[index]
         	targetSlnkPath := strings.Split(SlnkPart, "=")
@@ -79,33 +79,27 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
         	glog.Infof("***BVS*** Target SpectrumScale Symlink Path : %v\n", targetSlnkPath[1])
 		volPath := targetSlnkPath[1]
 
-                // Get loop device from the volume path.
-		volPathHandler := volumepathhandler.VolumePathHandler{}
-	        loopDevice, err := volPathHandler.AttachFileDevice(volPath)
-		/* Alternate way to associate block file with the loop device is below - commenting now
-	        args := []string{"-fP", "--show", path}
-        	loopDevice, err := executeCmd("/usr/sbin/losetup", args) */
+                // Create loop device using the volume path.
+	        args := []string{"-fP", "--show", volPath}
+        	loopDevice, err := executeCmd("/usr/sbin/losetup", args)
+		loopDevTrim := strings.TrimSpace(string(loopDevice))
 
 	        if err != nil {
-        	        glog.Errorf("***BVS*** AttachFileDevice/ losetup failed for file %v, err: %v", volPath, err)
-                	// Remove the block file because it'll no longer be used again.
-	                if err2 := os.Remove(volPath); err2 != nil {
-        	                glog.Errorf("***BVS*** failed to cleanup block file %s: %v", volPath, err2)
-                	}
-	                return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to attach device %v: %v", volPath, err))
+        	        glog.Errorf("***BVS*** Create loop device failed for file %v, err: %v", volPath, err)
+	                return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("failed to create loop device for path %v: err: %v", volPath, err))
         	}
-	        glog.Infof("***BVS*** AttachFileDevice/ losetup worked for file %v, err: %v, out: %v", volPath, err, loopDevice)
+	        glog.Infof("***BVS*** Created loop device: %s for file: %v", loopDevTrim, volPath)
 
 
-/*                loopDevice, err := volPathHandler.GetLoopDevice(volPath)
+		/*args := []string{"-j", volPath}
+		chkloopDevice, err := executeCmd("/usr/sbin/losetup", args)
                 if err != nil {
-			glog.Infof("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err)
-                        return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** failed to get the loop device: %v", err))
+	 	       glog.Infof("***BVS*** failed to get the loop device with losetup too")
                 } else {
-			glog.Errorf("***BVS*** got loopdevice: %v", loopDevice)
-		}*/
+                       glog.Infof("***BVS*** got loopdevice: %v", chkloopDevice)
+                }*/
 
-                args := []string{"-sf", loopDevice, targetPath}
+                args = []string{"-sf", loopDevTrim, targetPath}
                 outputBytes, err := executeCmd("/bin/ln", args)
                 glog.Infof("***BVS*** Cmd /bin/ln args: %v Output: %v", args, outputBytes)
                 if err != nil {
@@ -174,8 +168,55 @@ func (ns *ScaleNodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.Nod
 	}
 
 	if err := os.RemoveAll(targetPath); err != nil {
+		glog.Infof("***BVS*** Couldn't remove targetPath: %s, err: %v", targetPath, err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+
+	/* For block device delete the loop device */
+	if strings.Contains(targetPath, "/volumeDevices/") {
+		glog.Infof("***BVS*** About to delete Block Volume Device")
+		splitVId := strings.Split(volID, ";")
+
+		if len(splitVId) < 3 {
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** NodeUnpublishVolume VolumeID is not in proper format, volumeID: %s", volID))
+		}
+
+		index := 2
+
+		SlnkPart := splitVId[index]
+		targetSlnkPath := strings.Split(SlnkPart, "=")
+
+		if len(targetSlnkPath) < 2 {
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** NodeUnpublishVolume VolumeID is not in proper format, volumeID: %s", volID))
+		}
+
+		glog.Infof("***BVS*** Attempting to delete block device at path : %v\n", targetSlnkPath[1])
+		volPath := targetSlnkPath[1]
+
+		args := []string{"-j", volPath}
+		loopDevice, err := executeCmd("/usr/sbin/losetup", args)
+		if err != nil {
+			glog.Infof("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err)
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err))
+		}
+		if len(loopDevice) == 0 {
+			glog.Infof("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err)
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("***BVS*** failed to get the loop device for path: %s err: %v", volPath, err))
+		}
+		
+		loopDevStr := string(loopDevice)
+		loopDevStrSplt := strings.Split(loopDevStr, ":")
+		devPath := loopDevStrSplt[0]
+
+		args = []string{"-d", devPath}
+		out, err := executeCmd("/usr/sbin/losetup", args)
+		if err != nil {
+			glog.Infof("***BVS*** failed to delete the loop device: %s, err: %v, out: %v", devPath, err, out)
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+		glog.Infof("***BVS*** Successfully removed the loop device: %s", devPath)	
+	}
+
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
@@ -191,14 +232,6 @@ func (ns *ScaleNodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeSta
 	stagingTargetPath := req.GetStagingTargetPath()
 	volumeCapability := req.GetVolumeCapability()
 
-	if _, ok := volumeCapability.GetAccessType().(*csi.VolumeCapability_Block); ok {
-		/* For block volume we don't do anything, return from here */
-                glog.Infof("***BVS*** Block volume.. return from here")
-                return &csi.NodeStageVolumeResponse{}, nil
-        } else {
-                glog.Infof("***BVS*** NOT block volume")
-        }
-
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume ID must be provided")
 	}
@@ -208,6 +241,14 @@ func (ns *ScaleNodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeSta
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
 	}
+
+        if _, ok := volumeCapability.GetAccessType().(*csi.VolumeCapability_Block); ok {
+                /* For block volume we don't do anything, return from here */
+                glog.Infof("***BVS*** Block volume.. we don't do anything here")
+        } else {
+                glog.Infof("***BVS*** NOT block volume")
+        }
+
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 

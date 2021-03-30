@@ -153,9 +153,8 @@ func (cs *ScaleControllerServer) generateVolID(scVol *scaleVolume, uid string, r
 
 	if reqAccessType == blockAccess {
 		slink := fmt.Sprintf("%s/%s", scVol.PrimarySLnkPath, scVol.VolName)
-		acpath := fmt.Sprintf("/mnt/%s/%s/%s", scVol.VolBackendFs, scVol.VolDirBasePath, scVol.VolName)
-		glog.Errorf("***BVS*** Symbolic Link: %s, Actual Path: %s", slink, acpath)
-		volID = fmt.Sprintf("%s;%s;path=%s;actual_path=%s", scVol.ClusterId, uid, slink, acpath)
+                glog.Errorf("***BVS*** Symbolic Link: %s", slink)
+                volID = fmt.Sprintf("%s;%s;path=%s", scVol.ClusterId, uid, slink)
 
 		return volID
 	}
@@ -805,8 +804,25 @@ func (cs *ScaleControllerServer) GetVolIdMembers(vId string) (scaleVolId, error)
 	return scaleVolId{}, status.Error(codes.Internal, fmt.Sprintf("Invalid Volume Id : [%v]", vId))
 }
 
+func (cs *ScaleControllerServer) isBlockAccess(symlink string) (bool, string, error) {
+        path, err := filepath.EvalSymlinks(symlink)
+	if err != nil {
+		return false, "", status.Error(codes.Internal, fmt.Sprintf("Unable to reolve symbolic link: %s, err: %v", symlink, err))
+	}
+
+        info, err := os.Stat(path)
+        if err != nil {
+		return false, "", status.Error(codes.Internal, fmt.Sprintf("Unable to stat path: %s, err: %v", symlink, err))
+	}
+	
+	if info.IsDir() == false {
+		return true, path, nil
+        }
+	return false, path, nil
+}
+
 func (cs *ScaleControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	glog.V(3).Infof("DeleteVolume [%v]", req)
+	glog.V(3).Infof("DeleteVolume req: [%v], ctx: %v", req, ctx)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
 		glog.Warningf("invalid delete volume req: %v", req)
@@ -854,6 +870,10 @@ func (cs *ScaleControllerServer) DeleteVolume(ctx context.Context, req *csi.Dele
 
 	FilesystemName = getRemoteFsName(mountInfo.RemoteDeviceName)
 
+	isBlockVol, actPath, err := cs.isBlockAccess(volumeIdMembers.SymLnkPath)
+	if err != nil {
+		return nil, err
+	}
 	sLinkRelPath := strings.Replace(volumeIdMembers.SymLnkPath, cs.Driver.primary.PrimaryFSMount, "", 1)
 	sLinkRelPath = strings.Trim(sLinkRelPath, "!/")
 
@@ -893,13 +913,21 @@ func (cs *ScaleControllerServer) DeleteVolume(ctx context.Context, req *csi.Dele
 			}
 		}
 	} else {
-		/* Delete Dir for Lw volume */
-		err = primaryConn.DeleteDirectory(cs.Driver.primary.GetPrimaryFs(), sLinkRelPath)
-		if err != nil {
-			return nil, status.Error(codes.Internal, fmt.Sprintf("unable to Delete Dir using FS [%v] Relative SymLink [%v]. Error [%v]", cs.Driver.primary.GetPrimaryFs(), sLinkRelPath, err))
+		/* Delete Dir/ File for Lw volume */
+		if isBlockVol == true {
+			glog.Infof("***BVS*** About to delete at fs: %s, path: %s, actual path: %s", cs.Driver.primary.GetPrimaryFs(), sLinkRelPath, actPath)
+			if os.Remove(actPath) != nil {
+				return nil, status.Error(codes.Internal, fmt.Sprintf("unable to Delete File using FS [%v] Relative SymLink [%v]. Error [%v]", cs.Driver.primary.GetPrimaryFs(), sLinkRelPath, err))
+			}
+		} else {
+			err = primaryConn.DeleteDirectory(cs.Driver.primary.GetPrimaryFs(), sLinkRelPath)
+			if err != nil {
+				return nil, status.Error(codes.Internal, fmt.Sprintf("unable to Delete Dir using FS [%v] Relative SymLink [%v]. Error [%v]", cs.Driver.primary.GetPrimaryFs(), sLinkRelPath, err))
+			}
 		}
 	}
 
+	glog.Infof("***BVS*** About to delete symbolic link at fs: %s, path: %s", cs.Driver.primary.GetPrimaryFs(), sLinkRelPath)
 	err = primaryConn.DeleteSymLnk(cs.Driver.primary.GetPrimaryFs(), sLinkRelPath)
 
 	if err != nil {
