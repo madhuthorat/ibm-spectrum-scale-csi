@@ -88,6 +88,8 @@ spec:
               value: "{{cluster_checksum}}"
             - name: CSI_ENDPOINT
               value: "unix:{{ kubeletRootDirPath }}/plugins/spectrumscale.csi.ibm.com/csi.sock"
+            - name: SCALE_HOSTPATH
+              value: "{{ scaleHostpath }}"
             - name: SKIP_MOUNT_UNMOUNT
               value: "yes"
             - name: SECRET_CHECKSUM
@@ -111,6 +113,8 @@ spec:
               name: host-dev
             - name: "spectrum-scale-config"
               mountPath: /var/lib/ibm/config
+            - name: gpfs-classic
+              mountPath: "{{ scaleHostpath }}"
 
             # Grab user clusters
 {% for cluster in clustersCamelCase %}
@@ -165,6 +169,10 @@ spec:
         - name: "spectrum-scale-config"
           configMap:
             name: "spectrum-scale-config"
+        - name: gpfs-classic
+          hostPath:
+            path: "{{ scaleHostpath }}"
+            type: Directory
 
 # Grab user clusters
 {% for cluster in clustersCamelCase %}
