@@ -23,6 +23,7 @@ import (
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"github.com/moby/sys/mountinfo"
 )
 
 type ScaleIdentityServer struct {
@@ -45,7 +46,25 @@ func (is *ScaleIdentityServer) GetPluginCapabilities(ctx context.Context, req *c
 
 func (is *ScaleIdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	glog.V(4).Infof("Probe called with args: %#v", req)
-	return &csi.ProbeResponse{}, nil
+
+	// Determine plugin health
+	// If unhealthy return gRPC error code
+	// more on error codes https://github.com/container-storage-interface/spec/blob/master/spec.md#probe-errors
+
+	mounted, err := mountinfo.Mounted("/mnt/fs1")
+	if err != nil {
+		glog.Error("***PROBE*** was unable to get mounted information")
+		return &csi.ProbeResponse{}, status.Error(codes.FailedPrecondition, "***PROBE** was unable to get mounted information")
+	}
+	if mounted == true {
+		glog.Error("***PROBE*** GPFS file system is mounted")
+		return &csi.ProbeResponse{}, nil
+	}
+
+	glog.Error("***PROBE*** GPFS file system is not mounted")
+	return &csi.ProbeResponse{}, status.Error(codes.FailedPrecondition, "GPFS file system is not mounted")
+	
+//	return &csi.ProbeResponse{}, nil
 }
 
 func (is *ScaleIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
