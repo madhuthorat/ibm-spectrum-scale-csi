@@ -166,6 +166,9 @@ spec:
                     type: string
                 type: object
               type: array
+            scaleHostpath:
+              description: The path to the gpfs file system mounted on the host machine.
+              type: string
             secretCounter:
               description:
                 An internal counter used by the operator to trigger reloads
@@ -221,6 +224,8 @@ spec:
             kubeletRootDirPath:
               description: The kubelet root directory path.
               type: string
+          required:
+            - scaleHostpath
           type: object
         status:
           properties:
