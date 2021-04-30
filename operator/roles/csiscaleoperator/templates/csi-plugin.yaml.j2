@@ -97,6 +97,14 @@ spec:
 {% endif %}
             # Get refs to the secrets so we can trigger a refresh
           imagePullPolicy: "Always" # "IfNotPresent"
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 2
           volumeMounts:
             - name: plugin-dir
               mountPath: "{{ kubeletRootDirPath }}/plugins/spectrumscale.csi.ibm.com"
