@@ -166,6 +166,21 @@ spec:
                     type: string
                 type: object
               type: array
+            livenessprobe:
+              description: Liveness probe image for csi.
+              type: string
+            livenessprobeNodeSelector:
+              description: Node selector for livenessprobe sidecar.
+              items:
+                properties:
+                  key:
+                    description: Key for node selector.
+                    type: string
+                  value:
+                    description: Value for key.
+                    type: string
+                type: object
+              type: array
             scaleHostpath:
               description: The path to the gpfs file system mounted on the host machine.
               type: string

@@ -98,6 +98,10 @@ spec:
 #    - key: "infranode"
 #      value: "1"
 
+  livenessprobeNodeSelector:
+    - key: "scale"
+      value: "true"
+
 # pluginNodeSelector specifies nodes on which we want to run plugin daemoset
 # In below example plugin daemonset will run on nodes which have label as
 # "scale=true". Can have multiple entries.

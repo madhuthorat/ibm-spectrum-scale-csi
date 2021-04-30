@@ -113,6 +113,11 @@ spec:
         path: snapshotter
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:label
+      - description: Livenessprobe image for csi.
+        displayName: Livenessprobe Image
+        path: livenessprobe
+        x-descriptors:
+        - urn:alm:descriptor:com.tectonic.ui:label
       - description: Sidecar container image for the csi spectrum scale plugin pods.
         displayName: Driver Registrar Image
         path: driverRegistrar
@@ -151,6 +156,11 @@ spec:
       - description: Value for key.
         displayName: Value
         path: snapshotterNodeSelector.value
+        x-descriptors:
+        - urn:alm:descriptor:com.tectonic.ui:label
+      - description: Key for node selector.
+        displayName: Key
+        path: livenessprobeNodeSelector.key
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:label
       - description: Key for node selector.
