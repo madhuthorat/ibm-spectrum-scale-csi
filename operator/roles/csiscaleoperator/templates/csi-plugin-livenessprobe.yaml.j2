@@ -38,14 +38,15 @@ spec:
 {% endif %}
       serviceAccount: "{{ productName }}-livenessprobe"
       containers:
-        - name: csi-livenessprobe
+        - name: "{{ opName }}-livenessprobe"
 {% if 'apps.openshift.io' in api_groups %}
           securityContext:
             privileged: true
 {% endif %}
-          image: '{{ livenessprobe }}'
+          image: '{{ livenessprobeimg }}'
           args:
             - "--csi-address=$(ADDRESS)"
+#	    - "--health-port=9808"
             - "--v=5" # Debugging
           env:
             - name: ADDRESS

@@ -166,7 +166,7 @@ spec:
                     type: string
                 type: object
               type: array
-            livenessprobe:
+            livenessprobeimg:
               description: Liveness probe image for csi.
               type: string
             livenessprobeNodeSelector:

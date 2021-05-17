@@ -23,7 +23,6 @@ import (
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"github.com/moby/sys/mountinfo"
 )
 
 type ScaleIdentityServer struct {
@@ -51,20 +50,21 @@ func (is *ScaleIdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest)
 	// If unhealthy return gRPC error code
 	// more on error codes https://github.com/container-storage-interface/spec/blob/master/spec.md#probe-errors
 
-	mounted, err := mountinfo.Mounted("/mnt/fs1")
-	if err != nil {
-		glog.Error("***PROBE*** was unable to get mounted information")
-		return &csi.ProbeResponse{}, status.Error(codes.FailedPrecondition, "***PROBE** was unable to get mounted information")
-	}
-	if mounted == true {
-		glog.Error("***PROBE*** GPFS file system is mounted")
-		return &csi.ProbeResponse{}, nil
+        ghealthy, err := is.Driver.connmap["primary"].IsNodeComponentHealthy(is.Driver.nodeID,"GPFS")
+        if (ghealthy == false) {
+                glog.Error("***PROBE*** GPFS component on node %s is NOT healthy, err: %v", is.Driver.nodeID, err)
+		return &csi.ProbeResponse{}, err
 	}
 
-	glog.Error("***PROBE*** GPFS file system is not mounted")
-	return &csi.ProbeResponse{}, status.Error(codes.FailedPrecondition, "GPFS file system is not mounted")
+/*	nhealthy, err := is.Driver.connmap["primary"].IsNodeComponentHealthy(is.Driver.nodeID,"NODE")
+	if (nhealthy == false) {
+		glog.Error("***PROBE*** NODE component on node %s is NOT healthy, err: %v", is.Driver.nodeID, err)
+		return &csi.ProbeResponse{}, err
+	}*/
+
+        glog.Infof("***PROBE*** GPFS on Node %v is healthy", is.Driver.nodeID)
 	
-//	return &csi.ProbeResponse{}, nil
+	return &csi.ProbeResponse{}, nil
 }
 
 func (is *ScaleIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {

@@ -115,7 +115,7 @@ spec:
         - urn:alm:descriptor:com.tectonic.ui:label
       - description: Livenessprobe image for csi.
         displayName: Livenessprobe Image
-        path: livenessprobe
+        path: livenessprobeimg
         x-descriptors:
         - urn:alm:descriptor:com.tectonic.ui:label
       - description: Sidecar container image for the csi spectrum scale plugin pods.
