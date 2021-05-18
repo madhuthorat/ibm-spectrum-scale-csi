@@ -65,7 +65,7 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: liveness-probe
-          image: '{{ livenessprobeimg }}'
+          image: '{{ livenessprobe }}'
           args:
             - "--csi-address=$(ADDRESS)"
             - "--v=5"

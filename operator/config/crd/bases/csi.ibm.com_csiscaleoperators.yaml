@@ -112,6 +112,11 @@ spec:
                 Sidecar container image for the csi spectrum scale plugin
                 pods.
               type: string
+            livenessprobe:
+              description:
+                Sidecar liveness probe image for the csi spectrum scale plugin
+                pods.
+              type: string
             nodeMapping:
               description: Mapping of K8s node with SpectrumScale node.
               items:
@@ -156,21 +161,6 @@ spec:
               type: string
             snapshotterNodeSelector:
               description: Node selector for snapshotter sidecar.
-              items:
-                properties:
-                  key:
-                    description: Key for node selector.
-                    type: string
-                  value:
-                    description: Value for key.
-                    type: string
-                type: object
-              type: array
-            livenessprobeimg:
-              description: Liveness probe image for csi.
-              type: string
-            livenessprobeNodeSelector:
-              description: Node selector for livenessprobe sidecar.
               items:
                 properties:
                   key:
