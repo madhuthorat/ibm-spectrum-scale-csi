@@ -23,6 +23,7 @@ import (
 	"github.com/golang/glog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 type ScaleIdentityServer struct {
@@ -50,21 +51,21 @@ func (is *ScaleIdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest)
 	// If unhealthy return gRPC error code
 	// more on error codes https://github.com/container-storage-interface/spec/blob/master/spec.md#probe-errors
 
-        ghealthy, err := is.Driver.connmap["primary"].IsNodeComponentHealthy(is.Driver.nodeID,"GPFS")
-        if (ghealthy == false) {
-                glog.Error("***PROBE*** GPFS component on node %s is NOT healthy, err: %v", is.Driver.nodeID, err)
-		return &csi.ProbeResponse{}, err
+	ghealthy, err := is.Driver.connmap["primary"].IsNodeComponentHealthy(is.Driver.nodeID,"GPFS")
+	if (ghealthy == false) {
+		glog.Errorf("Probe: GPFS component on node %v is not healthy. Error: %v", is.Driver.nodeID, err)
+		return &csi.ProbeResponse{Ready: &wrappers.BoolValue{Value: false}}, err
 	}
 
 /*	nhealthy, err := is.Driver.connmap["primary"].IsNodeComponentHealthy(is.Driver.nodeID,"NODE")
 	if (nhealthy == false) {
-		glog.Error("***PROBE*** NODE component on node %s is NOT healthy, err: %v", is.Driver.nodeID, err)
-		return &csi.ProbeResponse{}, err
+		glog.Errorf("Probe: NODE component on node %v is not healthy. Error: %v", is.Driver.nodeID, err)
+		return &csi.ProbeResponse{Ready: &wrappers.BoolValue{Value: false}}, err
 	}*/
 
-        glog.Infof("***PROBE*** GPFS on Node %v is healthy", is.Driver.nodeID)
+	glog.V(4).Infof("Probe: GPFS on node %v is healthy", is.Driver.nodeID)
 	
-	return &csi.ProbeResponse{}, nil
+	return &csi.ProbeResponse{Ready: &wrappers.BoolValue{Value: true}}, nil
 }
 
 func (is *ScaleIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
