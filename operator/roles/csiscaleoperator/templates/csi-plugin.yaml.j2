@@ -170,6 +170,7 @@ spec:
           configMap:
             name: "spectrum-scale-config"
         - name: gpfs-classic
+          readOnly: true
           hostPath:
             path: "{{ scaleHostpath }}"
             type: Directory
