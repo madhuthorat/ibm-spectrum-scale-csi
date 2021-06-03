@@ -57,6 +57,21 @@ spec:
                     type: string
                 type: object
               type: array
+            resizer:
+              description: Resizer image for csi (actually attaches to the storage).
+              type: string
+            resizerNodeSelector:
+              description: Node selector for resizer sidecar.
+              items:
+                properties:
+                  key:
+                    description: Key for node selector.
+                    type: string
+                  value:
+                    description: Value for key.
+                    type: string
+                type: object
+              type: array
             clusters:
               description:
                 A collection of gpfs cluster properties for the csi driver

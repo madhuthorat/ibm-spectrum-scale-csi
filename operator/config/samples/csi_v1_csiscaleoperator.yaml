@@ -52,6 +52,8 @@ spec:
 # ==================================================================================
 #  attacher: "us.gcr.io/k8s-artifacts-prod/sig-storage/csi-attacher:v3.1.0"
 
+#  resizer: "us.gcr.io/k8s-artifacts-prod/sig-storage/csi-resizer:v1.1.0"
+
 # Provisioner image name, in case we do not want to use default image.
 # ==================================================================================
 #  provisioner: "us.gcr.io/k8s-artifacts-prod/sig-storage/csi-provisioner:v2.1.0"
@@ -73,6 +75,12 @@ spec:
 # and "infranode=2". Can have multiple entries.
 # ==================================================================================
   attacherNodeSelector:
+    - key: "scale"
+      value: "true"
+#    - key: "infranode"
+#      value: "2"
+
+  resizerNodeSelector:
     - key: "scale"
       value: "true"
 #    - key: "infranode"

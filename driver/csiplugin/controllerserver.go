@@ -1446,6 +1446,93 @@ func (cs *ScaleControllerServer) GetCapacity(ctx context.Context, req *csi.GetCa
 func (cs *ScaleControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
+
 func (cs *ScaleControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	glog.V(4).Infof("ControllerExpandVolume : req %#v", req)
+
+        volumeID := req.GetVolumeId()
+
+        if volumeID == "" {
+                return nil, status.Error(codes.InvalidArgument, "ControllerExpandVolume : VolumeID is not present")
+        }
+
+        /* Get volume size in bytes */
+        cap := req.GetCapacityRange()
+        volSize := cap.GetRequiredBytes()
+
+        volumeIdMembers, err := cs.GetVolIdMembers(volumeID)
+        if err != nil {
+                return &csi.ControllerExpandVolumeResponse{}, err
+        }
+
+        glog.Infof("Volume Id Members [%v]", volumeIdMembers)
+
+        /*conn, err := cs.getConnFromClusterID(volumeIdMembers.ClusterId)
+        if err != nil {
+                return nil, err
+        }*/
+
+        primaryConn, isprimaryConnPresent := cs.Driver.connmap["primary"]
+        if !isprimaryConnPresent {
+                glog.Errorf("unable to get connector for primary cluster")
+                return nil, status.Error(codes.Internal, "unable to find primary cluster details in custom resource")
+        }
+
+        /* FsUUID in volumeIdMembers will be of Primary cluster. So lets get Name of it
+           from Primary cluster */
+        FilesystemName, err := primaryConn.GetFilesystemName(volumeIdMembers.FsUUID)
+
+        if err != nil {
+                return nil, status.Error(codes.Internal, fmt.Sprintf("unable to get filesystem Name for Id [%v] and clusterId [%v]. Error [%v]", volumeIdMembers.FsUUID, volumeIdMembers.ClusterId, err))
+        }
+
+        mountInfo, err := primaryConn.GetFilesystemMountDetails(FilesystemName)
+
+        if err != nil {
+                return nil, status.Error(codes.Internal, fmt.Sprintf("unable to get mount info for FS [%v] in primary cluster", FilesystemName))
+        }
+
+        FilesystemName = getRemoteFsName(mountInfo.RemoteDeviceName)
+
+        isBlockVol, actPath, err := cs.isBlockAccess(volumeIdMembers.SymLnkPath)
+        if err != nil {
+                return nil, err
+        }
+
+        sLinkRelPath := strings.Replace(volumeIdMembers.SymLnkPath, cs.Driver.primary.PrimaryFSMount, "", 1)
+        sLinkRelPath = strings.Trim(sLinkRelPath, "!/")
+
+        if isBlockVol == true {
+		glog.Infof("***BVS*** About to expand volume at fs: %s, path: %s, actPath: %s with size: %v", cs.Driver.primary.GetPrimaryFs(), sLinkRelPath, actPath, volSize)
+	        mib := uint64(1024 * 1024)
+        	size := fmt.Sprintf("%dM", uint64(volSize)/mib)
+		path := sLinkRelPath
+	        glog.Infof("***BVS*** Expanding file %v with size: %s", path, size)
+	        _, err = os.Stat(path)
+	        if err != nil {
+        	        if os.IsNotExist(err) {
+                	        args := []string{"if=/dev/zero", "of="+path, "bs="+size, "count=1", "oflag=append", "conv=notrunc"}
+                        	out, err := executeCmd("/usr/bin/dd", args)
+	                        if err != nil {
+					glog.Infof("***BVS*** failed to expand block device: path: %v %v, %v", path, err, string(out))
+        	                        return &csi.ControllerExpandVolumeResponse{}, status.Error(codes.Internal, fmt.Sprintf("failed to expand block device: path: %v %v, %v", path, err, string(out)))
+                	        }
+	                } else {
+				glog.Infof("***BVS*** failed to stat block device: %v, %v", path, err)
+        	                return &csi.ControllerExpandVolumeResponse{}, status.Error(codes.Internal, fmt.Sprintf("failed to stat block device: %v, %v", path, err))
+                	}
+	        }
+	}
+
+	nodeExpansionRequired := true
+        // Node expansion is not required for raw block volumes
+        if isBlockVol == true {
+                nodeExpansionRequired = false
+        }
+        resp := &csi.ControllerExpandVolumeResponse{
+                CapacityBytes:         int64(volSize),
+                NodeExpansionRequired: nodeExpansionRequired,
+        }
+
+	return resp, nil
 }
